@@ -17,7 +17,7 @@ ARGS=$*
 # script, and that this script resides in the repo dir!
 REPODIR=$(cd $(dirname $0); pwd)
 
-VALIDARGS="clean libcudf cudf cudfjar dask_cudf benchmarks tests libcudf_kafka cudf_kafka custreamz -v -g -n --pydevelop -l --allgpuarch --disable_nvtx --opensource_nvcomp  --show_depr_warn --ptds -h --build_metrics --incl_cache_stats"
+VALIDARGS="clean libcudf cudf cudfjar dask_cudf benchmarks examples tests libcudf_kafka cudf_kafka custreamz -v -g -n --pydevelop -l --allgpuarch --disable_nvtx --opensource_nvcomp  --show_depr_warn --ptds -h --build_metrics --incl_cache_stats"
 HELP="$0 [clean] [libcudf] [cudf] [cudfjar] [dask_cudf] [benchmarks] [tests] [libcudf_kafka] [cudf_kafka] [custreamz] [-v] [-g] [-n] [-h] [--cmake-args=\\\"<args>\\\"]
    clean                         - remove all existing build artifacts and configuration (start
                                    over)
@@ -26,6 +26,7 @@ HELP="$0 [clean] [libcudf] [cudf] [cudfjar] [dask_cudf] [benchmarks] [tests] [li
    cudfjar                       - build cudf JAR with static libcudf using devtoolset toolchain
    dask_cudf                     - build the dask_cudf Python package
    benchmarks                    - build benchmarks
+   examples                      - build examples
    tests                         - build tests
    libcudf_kafka                 - build the libcudf_kafka C++ code only
    cudf_kafka                    - build the cudf_kafka Python package
@@ -62,6 +63,7 @@ VERBOSE_FLAG=""
 BUILD_TYPE=Release
 INSTALL_TARGET=install
 BUILD_BENCHMARKS=OFF
+BUILD_EXAMPLES=OFF
 BUILD_ALL_GPU_ARCH=0
 BUILD_NVTX=ON
 BUILD_TESTS=OFF
@@ -208,6 +210,9 @@ fi
 if hasArg benchmarks; then
     BUILD_BENCHMARKS=ON
 fi
+if hasArg examples; then
+    BUILD_EXAMPLES=ON
+fi
 if hasArg tests; then
     BUILD_TESTS=ON
 fi
@@ -290,6 +295,7 @@ if buildAll || hasArg libcudf; then
           -DCUDF_USE_PROPRIETARY_NVCOMP=${USE_PROPRIETARY_NVCOMP} \
           -DBUILD_TESTS=${BUILD_TESTS} \
           -DBUILD_BENCHMARKS=${BUILD_BENCHMARKS} \
+          -DBUILD_EXAMPLES=${BUILD_EXAMPLES} \
           -DDISABLE_DEPRECATION_WARNINGS=${BUILD_DISABLE_DEPRECATION_WARNINGS} \
           -DCUDF_USE_PER_THREAD_DEFAULT_STREAM=${BUILD_PER_THREAD_DEFAULT_STREAM} \
           -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \

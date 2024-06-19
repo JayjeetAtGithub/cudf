@@ -47,6 +47,7 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 option(USE_NVTX "Build with NVTX support" ON)
 option(BUILD_TESTS "Configure CMake to build tests" ON)
 option(BUILD_BENCHMARKS "Configure CMake to build (google & nvbench) benchmarks" OFF)
+option(BUILD_EXAMPLES "Configure CMake to build examples" OFF)
 option(BUILD_SHARED_LIBS "Build cuDF shared libraries" ON)
 option(JITIFY_USE_CACHE "Use a file cache for JIT compiled kernels" ON)
 option(CUDF_BUILD_TESTUTIL "Whether to build the test utilities contained in libcudf" ON)
@@ -96,6 +97,7 @@ mark_as_advanced(CUDF_BUILD_STREAMS_TEST_UTIL)
 message(VERBOSE "CUDF: Build with NVTX support: ${USE_NVTX}")
 message(VERBOSE "CUDF: Configure CMake to build tests: ${BUILD_TESTS}")
 message(VERBOSE "CUDF: Configure CMake to build (google & nvbench) benchmarks: ${BUILD_BENCHMARKS}")
+message(VERBOSE "CUDF: Configure CMake to build examples: ${BUILD_EXAMPLES}")
 message(VERBOSE "CUDF: Build cuDF shared libraries: ${BUILD_SHARED_LIBS}")
 message(VERBOSE "CUDF: Use a file cache for JIT compiled kernels: ${JITIFY_USE_CACHE}")
 message(VERBOSE "CUDF: Build and statically link Arrow libraries: ${CUDF_USE_ARROW_STATIC}")
@@ -119,6 +121,7 @@ message(VERBOSE "CUDF: Statically link the CUDA runtime: ${CUDA_STATIC_RUNTIME}"
 rapids_cmake_build_type("Release")
 set(CUDF_BUILD_TESTS ${BUILD_TESTS})
 set(CUDF_BUILD_BENCHMARKS ${BUILD_BENCHMARKS})
+set(CUDF_BUILD_EXAMPLES ${BUILD_EXAMPLES})
 if(BUILD_TESTS AND NOT CUDF_BUILD_TESTUTIL)
   message(
     FATAL_ERROR
@@ -970,6 +973,13 @@ if(CUDF_BUILD_BENCHMARKS)
   include(cmake/thirdparty/get_nvbench.cmake)
 
   add_subdirectory(benchmarks)
+endif()
+
+# ##################################################################################################
+# * add examples --------------------------------------------------------------------------------
+
+if(CUDF_BUILD_EXAMPLES)
+  add_subdirectory(examples)
 endif()
 
 # ##################################################################################################
