@@ -120,7 +120,7 @@ int main(int argc, char const** argv)
                                             "l_tax"};
   auto shipdate_ref                      = cudf::ast::column_reference(std::distance(
     lineitem_cols.begin(), std::find(lineitem_cols.begin(), lineitem_cols.end(), "l_shipdate")));
-  auto shipdate_upper                    = cudf::make_string_scalar("1998-09-02");
+  auto shipdate_upper                    = cudf::string_scalar("1998-09-02");
   auto shipdate_upper_literal            = cudf::ast::literal(shipdate_upper);
   auto lineitem_pred                     = std::make_unique<cudf::ast::operation>(
     cudf::ast::ast_operator::LESS_EQUAL, shipdate_ref, shipdate_upper_literal);

@@ -20,6 +20,7 @@
 #include <cudf/datetime.hpp>
 #include <cudf/scalar/scalar.hpp>
 #include <cudf/strings/contains.hpp>
+#include <cudf/strings/slice.hpp>
 #include <cudf/strings/strings_column_view.hpp>
 
 /**
