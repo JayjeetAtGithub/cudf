@@ -146,7 +146,7 @@ int main(int argc, char const** argv)
 
   // Calculate the `nation`, `o_year`, and `amount` columns
   auto n_name = std::make_unique<cudf::column>(joined_table->column("n_name"));
-  auto o_year = cudf::datetime::extract_year(joined_table->column("o_orderdate"));
+  auto o_year = cudf::strings::slice_strings(joined_table->column("o_orderdate"), 0, 4);
   auto amount = calc_amount(joined_table->column("l_discount"),
                             joined_table->column("l_extendedprice"),
                             joined_table->column("ps_supplycost"),

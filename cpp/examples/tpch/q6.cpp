@@ -71,13 +71,11 @@ int main(int argc, char const** argv)
   // Read out the `lineitem` table from parquet file
   std::vector<std::string> lineitem_cols = {
     "l_extendedprice", "l_discount", "l_shipdate", "l_quantity"};
-  auto shipdate_ref = cudf::ast::column_reference(std::distance(
+  auto shipdate_ref           = cudf::ast::column_reference(std::distance(
     lineitem_cols.begin(), std::find(lineitem_cols.begin(), lineitem_cols.end(), "l_shipdate")));
-  auto shipdate_lower =
-    cudf::timestamp_scalar<cudf::timestamp_D>(days_since_epoch(1994, 1, 1), true);
+  auto shipdate_lower         = cudf::string_scalar("1994-01-01");
   auto shipdate_lower_literal = cudf::ast::literal(shipdate_lower);
-  auto shipdate_upper =
-    cudf::timestamp_scalar<cudf::timestamp_D>(days_since_epoch(1995, 1, 1), true);
+  auto shipdate_upper         = cudf::string_scalar("1995-01-01");
   auto shipdate_upper_literal = cudf::ast::literal(shipdate_upper);
   auto shipdate_pred_a        = cudf::ast::operation(
     cudf::ast::ast_operator::GREATER_EQUAL, shipdate_ref, shipdate_lower_literal);

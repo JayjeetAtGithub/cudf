@@ -98,13 +98,11 @@ int main(int argc, char const** argv)
   std::vector<std::string> orders_cols = {"o_custkey", "o_orderkey", "o_orderdate"};
   auto o_orderdate_ref                 = cudf::ast::column_reference(std::distance(
     orders_cols.begin(), std::find(orders_cols.begin(), orders_cols.end(), "o_orderdate")));
-  auto o_orderdate_lower =
-    cudf::timestamp_scalar<cudf::timestamp_D>(days_since_epoch(1994, 1, 1), true);
-  auto o_orderdate_lower_limit = cudf::ast::literal(o_orderdate_lower);
-  auto o_orderdate_pred_lower  = cudf::ast::operation(
+  auto o_orderdate_lower               = cudf::string_scalar("1994-01-01");
+  auto o_orderdate_lower_limit         = cudf::ast::literal(o_orderdate_lower);
+  auto o_orderdate_pred_lower          = cudf::ast::operation(
     cudf::ast::ast_operator::GREATER_EQUAL, o_orderdate_ref, o_orderdate_lower_limit);
-  auto o_orderdate_upper =
-    cudf::timestamp_scalar<cudf::timestamp_D>(days_since_epoch(1995, 1, 1), true);
+  auto o_orderdate_upper       = cudf::string_scalar("1995-01-01");
   auto o_orderdate_upper_limit = cudf::ast::literal(o_orderdate_upper);
   auto o_orderdate_pred_upper =
     cudf::ast::operation(cudf::ast::ast_operator::LESS, o_orderdate_ref, o_orderdate_upper_limit);
