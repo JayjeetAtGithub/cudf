@@ -20,7 +20,7 @@ target_link_libraries(dbgen PRIVATE cudf::cudf cudf::cudf_tpch_datagen)
 target_compile_features(dbgen PRIVATE cxx_std_17)
 
 add_executable(tpch_q1 q1.cpp)
-target_link_libraries(tpch_q1 PRIVATE cudf::cudf)
+target_link_libraries(tpch_q1 PRIVATE cudf::cudf cudf::cudf_tpch_datagen)
 target_compile_features(tpch_q1 PRIVATE cxx_std_17)
 
 add_executable(tpch_q5 q5.cpp)
