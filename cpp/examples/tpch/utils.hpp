@@ -509,5 +509,7 @@ tpch_example_args parse_args(int argc, char const** argv)
 cudf::size_type get_sf()
 {
   char* val = getenv("CUDF_TPCH_SF");
-  return val == NULL ? 1 : atoi(val);
+  auto val == NULL ? 1 : atoi(val);
+  std::cout << "Using scale factor: " << val << std::endl;
+  return val;
 }
