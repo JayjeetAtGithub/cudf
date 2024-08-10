@@ -36,6 +36,7 @@
 #include <rmm/mr/device/pool_memory_resource.hpp>
 #include <rmm/mr/device/statistics_resource_adaptor.hpp>
 
+#include <cstdlib>
 #include <ctime>
 #include <memory>
 #include <vector>
@@ -271,11 +272,13 @@ std::vector<T> concat(std::vector<T> const& lhs, std::vector<T> const& rhs)
 
 /**
  * @brief Apply projection to a table
- * 
+ *
  * @param table The input table
  * @param col_names The column to project
  */
-[[nodiscard]] std::unique_ptr<table_with_names> apply_projection(std::unique_ptr<table_with_names> const& table, std::vector<std::string> col_names) {
+[[nodiscard]] std::unique_ptr<table_with_names> apply_projection(
+  std::unique_ptr<table_with_names> const& table, std::vector<std::string> col_names)
+{
   std::vector<std::unique_ptr<cudf::column>> projected_cols;
   auto cols = table->table().release();
   for (auto const& col_name : col_names) {
@@ -498,4 +501,13 @@ tpch_example_args parse_args(int argc, char const** argv)
   args.dataset_dir          = argv[1];
   args.memory_resource_type = argv[2];
   return args;
+}
+
+/**
+ * @brief Read the scale factor from the environment variable `CUDF_TPCH_SF`
+ */
+cudf::size_type get_sf()
+{
+  char* val = getenv("CUDF_TPCH_SF");
+  return val == NULL ? 1 : atoi(val);
 }
