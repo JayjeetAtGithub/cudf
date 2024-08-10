@@ -133,7 +133,7 @@
 
   if (source == "cudf_datagen") {
     auto [o, l, p] = cudf::datagen::generate_orders_lineitem_part(
-      1, cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
     auto lineitem =
       std::make_unique<table_with_names>(std::move(l), cudf::datagen::schema::LINEITEM);
     auto lineitem_projected = apply_projection(std::move(lineitem), lineitem_cols);
