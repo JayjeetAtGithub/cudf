@@ -37,6 +37,8 @@
 #include <rmm/mr/device/statistics_resource_adaptor.hpp>
 
 #include <ctime>
+#include <memory>
+#include <vector>
 
 /**
  * @brief Log the peak memory usage of the GPU
@@ -95,10 +97,11 @@ class table_with_names {
     : tbl(std::move(tbl)), col_names(col_names)
   {
   }
+  [[nodiscard]] cudf::table table() { return *tbl; }
   /**
    * @brief Return the table view
    */
-  [[nodiscard]] cudf::table_view table() const { return tbl->view(); }
+  [[nodiscard]] cudf::table_view view() const { return tbl->view(); }
   /**
    * @brief Return the column view for a given column name
    *
@@ -261,9 +264,25 @@ std::vector<T> concat(std::vector<T> const& lhs, std::vector<T> const& rhs)
                  std::back_inserter(right_on_indices),
                  [&](auto const& col_name) { return right_input->col_id(col_name); });
   auto table = join_and_gather(
-    left_input->table(), right_input->table(), left_on_indices, right_on_indices, compare_nulls);
+    left_input->view(), right_input->view(), left_on_indices, right_on_indices, compare_nulls);
   return std::make_unique<table_with_names>(
     std::move(table), concat(left_input->column_names(), right_input->column_names()));
+}
+
+/**
+ * @brief Apply projection to a table
+ * 
+ * @param table The input table
+ * @param col_names The column to project
+ */
+[[nodiscard]] std::unique_ptr<table_with_names> apply_projection(std::unique_ptr<table_with_names> const& table, std::vector<std::string> col_names) {
+  std::vector<std::unique_ptr<cudf::column>> projected_cols;
+  auto cols = table->table().release();
+  for (auto const& col_name : col_names) {
+    projected_cols.push_back(std::move(cols[table->col_id(col_name)]));
+  }
+  auto projected_tbl = std::make_unique<cudf::table>(std::move(projected_cols));
+  return std::make_unique<table_with_names>(std::move(projected_tbl), col_names);
 }
 
 /**
@@ -276,8 +295,8 @@ std::vector<T> concat(std::vector<T> const& lhs, std::vector<T> const& rhs)
   std::unique_ptr<table_with_names> const& table, cudf::ast::operation const& predicate)
 {
   CUDF_FUNC_RANGE();
-  auto const boolean_mask = cudf::compute_column(table->table(), predicate);
-  auto result_table       = cudf::apply_boolean_mask(table->table(), boolean_mask->view());
+  auto const boolean_mask = cudf::compute_column(table->view(), predicate);
+  auto result_table       = cudf::apply_boolean_mask(table->view(), boolean_mask->view());
   return std::make_unique<table_with_names>(std::move(result_table), table->column_names());
 }
 
@@ -291,7 +310,7 @@ std::vector<T> concat(std::vector<T> const& lhs, std::vector<T> const& rhs)
   std::unique_ptr<table_with_names> const& table, std::unique_ptr<cudf::column> const& mask)
 {
   CUDF_FUNC_RANGE();
-  auto result_table = cudf::apply_boolean_mask(table->table(), mask->view());
+  auto result_table = cudf::apply_boolean_mask(table->view(), mask->view());
   return std::make_unique<table_with_names>(std::move(result_table), table->column_names());
 }
 
@@ -368,7 +387,7 @@ struct groupby_context_t {
     column_views.push_back(table->column(key));
   }
   auto result_table =
-    cudf::sort_by_key(table->table(), cudf::table_view{column_views}, sort_key_orders);
+    cudf::sort_by_key(table->view(), cudf::table_view{column_views}, sort_key_orders);
   return std::make_unique<table_with_names>(std::move(result_table), table->column_names());
 }
 
