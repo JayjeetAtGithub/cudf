@@ -131,7 +131,7 @@
   auto const lineitem_pred          = std::make_unique<cudf::ast::operation>(
     cudf::ast::ast_operator::LESS_EQUAL, shipdate_ref, shipdate_upper_literal);
 
-  if (dataset_dir == "cudf_datagen") {
+  if (source == "cudf_datagen") {
     auto [o, l, p] = cudf::datagen::generate_orders_lineitem_part(
       1, cudf::get_default_stream(), rmm::mr::get_current_device_resource());
     auto lineitem =
@@ -139,7 +139,7 @@
     auto lineitem_projected = apply_projection(std::move(lineitem), lineitem_cols);
     return apply_filter(std::move(lineitem_projected), *lineitem_pred);
   } else {
-    return read_parquet(dataset_dir + "/lineitem.parquet", lineitem_cols, std::move(lineitem_pred));
+    return read_parquet(source + "/lineitem.parquet", lineitem_cols, std::move(lineitem_pred));
   }
 }
 
