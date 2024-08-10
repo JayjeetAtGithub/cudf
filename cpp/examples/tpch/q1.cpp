@@ -143,7 +143,7 @@ int main(int argc, char const** argv)
 {
   auto const args = parse_args(argc, argv);
 
-  // Use a memory pool
+  // Create memory resource
   auto resource = create_memory_resource(args.memory_resource_type);
   rmm::mr::set_current_device_resource(resource.get());
 
