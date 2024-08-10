@@ -22,11 +22,7 @@
 #include <cudf/scalar/scalar.hpp>
 #include <cudf/utilities/default_stream.hpp>
 
-#include <rmm/mr/device/per_device_resource.hpp>
-
 #include <cudf_benchmark/tpch_datagen.hpp>
-
-#include <memory>
 
 /**
  * @file q1.cpp

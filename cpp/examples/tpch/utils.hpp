@@ -28,7 +28,6 @@
 #include <cudf/transform.hpp>
 #include <cudf/unary.hpp>
 
-#include <rmm/cuda_device.hpp>
 #include <rmm/mr/device/cuda_memory_resource.hpp>
 #include <rmm/mr/device/device_memory_resource.hpp>
 #include <rmm/mr/device/managed_memory_resource.hpp>
@@ -38,8 +37,6 @@
 
 #include <cstdlib>
 #include <ctime>
-#include <memory>
-#include <vector>
 
 /**
  * @brief Log the peak memory usage of the GPU
