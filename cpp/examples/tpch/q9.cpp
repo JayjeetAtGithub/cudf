@@ -133,7 +133,7 @@ int main(int argc, char const** argv)
 
   // Generating the `profit` table
   // Filter the part table using `p_name like '%green%'`
-  auto const p_name = part->table().column(1);
+  auto const p_name = part->view().column(1);
   auto const mask =
     cudf::strings::like(cudf::strings_column_view(p_name), cudf::string_scalar("%green%"));
   auto const part_filtered = apply_mask(part, mask);
