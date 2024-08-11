@@ -21,6 +21,8 @@
 #include <cudf/column/column.hpp>
 #include <cudf/scalar/scalar.hpp>
 
+#include <cudf_benchmark/tpch_datagen.hpp>
+
 /**
  * @file q10.cpp
  * @brief Implement query 10 of the TPC-H benchmark.
@@ -89,26 +91,23 @@
                                         mr);
   return revenue;
 }
-int main(int argc, char const** argv)
+
+/**
+ * @brief Generate or read the dataset
+ *
+ * @param source The dataset source
+ */
+[[nodiscard]] auto prepare_dataset(std::string source)
 {
-  auto const args = parse_args(argc, argv);
+  // Define the column projection and filter predicates for the source tables
+  std::vector<std::string> const orders_cols   = {"o_custkey", "o_orderkey", "o_orderdate"};
+  std::vector<std::string> const lineitem_cols = {
+    "l_extendedprice", "l_discount", "l_orderkey", "l_returnflag"};
+  std::vector<std::string> const customer_cols = {
+    "c_custkey", "c_name", "c_nationkey", "c_acctbal", "c_address", "c_phone", "c_comment"};
+  std::vector<std::string> const nation_cols = {"n_name", "n_nationkey"};
 
-  // Create memory resource
-  auto resource = create_memory_resource(args.memory_resource_type);
-  rmm::mr::set_current_device_resource(resource.get());
-
-  // Print hardware stats
-  print_hardware_stats();
-
-  // Instantiate the memory stats logger
-  auto const mem_stats_logger = memory_stats_logger();
-
-  // Start timer
-  cudf::examples::timer timer;
-
-  // Define the column projection and filter predicate for the `orders` table
-  std::vector<std::string> const orders_cols = {"o_custkey", "o_orderkey", "o_orderdate"};
-  auto const o_orderdate_ref                 = cudf::ast::column_reference(std::distance(
+  auto const o_orderdate_ref = cudf::ast::column_reference(std::distance(
     orders_cols.begin(), std::find(orders_cols.begin(), orders_cols.end(), "o_orderdate")));
   auto o_orderdate_lower =
     cudf::timestamp_scalar<cudf::timestamp_D>(days_since_epoch(1993, 10, 1), true);
@@ -129,18 +128,64 @@ int main(int argc, char const** argv)
   auto const lineitem_pred    = std::make_unique<cudf::ast::operation>(
     cudf::ast::ast_operator::EQUAL, l_returnflag_ref, r_literal);
 
-  // Read out the tables from parquet files
-  // while pushing down the column projections and filter predicates
-  auto const customer = read_parquet(
-    args.dataset_dir + "/customer.parquet",
-    {"c_custkey", "c_name", "c_nationkey", "c_acctbal", "c_address", "c_phone", "c_comment"});
-  auto const orders =
-    read_parquet(args.dataset_dir + "/orders.parquet", orders_cols, std::move(orders_pred));
-  auto const lineitem =
-    read_parquet(args.dataset_dir + "/lineitem.parquet",
-                 {"l_extendedprice", "l_discount", "l_orderkey", "l_returnflag"},
-                 std::move(lineitem_pred));
-  auto const nation = read_parquet(args.dataset_dir + "/nation.parquet", {"n_name", "n_nationkey"});
+  if (source == "cudf_datagen") {
+    auto [o, l, p] = cudf::datagen::generate_orders_lineitem_part(
+      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+    auto orders = std::make_unique<table_with_names>(std::move(o), cudf::datagen::schema::ORDERS);
+    auto orders_projected = apply_projection(std::move(orders), orders_cols);
+    auto orders_filtered  = apply_filter(std::move(orders_projected), *orders_pred);
+
+    auto lineitem =
+      std::make_unique<table_with_names>(std::move(l), cudf::datagen::schema::LINEITEM);
+    auto lineitem_projected = apply_projection(std::move(lineitem), lineitem_cols);
+    auto lineitem_filtered  = apply_filter(std::move(lineitem_projected), *lineitem_pred);
+
+    auto c = cudf::datagen::generate_customer(
+      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+    auto customer =
+      std::make_unique<table_with_names>(std::move(c), cudf::datagen::schema::CUSTOMER);
+    auto customer_projected = apply_projection(std::move(customer), customer_cols);
+
+    auto n      = cudf::datagen::generate_nation(cudf::get_default_stream(),
+                                            rmm::mr::get_current_device_resource());
+    auto nation = std::make_unique<table_with_names>(std::move(n), cudf::datagen::schema::NATION);
+    auto nation_projected = apply_projection(std::move(nation), nation_cols);
+
+    return std::make_tuple(std::move(orders_filtered),
+                           std::move(lineitem_filtered),
+                           std::move(customer_projected),
+                           std::move(nation_projected));
+  } else {
+    auto orders = read_parquet(source + "/orders.parquet", orders_cols, std::move(orders_pred));
+    auto lineitem =
+      read_parquet(source + "/lineitem.parquet", lineitem_cols, std::move(lineitem_pred));
+    auto customer = read_parquet(source + "/customer.parquet", customer_cols);
+    auto nation   = read_parquet(source + "/nation.parquet", nation_cols);
+
+    return std::make_tuple(
+      std::move(orders), std::move(lineitem), std::move(customer), std::move(nation));
+  }
+}
+
+int main(int argc, char const** argv)
+{
+  auto const args = parse_args(argc, argv);
+
+  // Create memory resource
+  auto resource = create_memory_resource(args.memory_resource_type);
+  rmm::mr::set_current_device_resource(resource.get());
+
+  // Print hardware stats
+  print_hardware_stats();
+
+  // Instantiate the memory stats logger
+  auto const mem_stats_logger = memory_stats_logger();
+
+  // Start timer
+  cudf::examples::timer timer;
+
+  // Prepare the dataset
+  auto [orders, lineitem, customer, nation] = prepare_dataset(args.dataset_dir);
 
   // Perform the joins
   auto const join_a       = apply_inner_join(customer, nation, {"c_nationkey"}, {"n_nationkey"});
