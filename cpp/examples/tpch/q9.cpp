@@ -164,17 +164,18 @@
                            std::move(nation_projected));
   } else {
     // Read out the table from parquet files
-    auto const orders   = read_parquet(source + "/orders.parquet", orders_cols);
-    auto const lineitem = read_parquet(source + "/lineitem.parquet", lineitem_cols);
-    auto const part     = read_parquet(source + "/part.parquet", part_cols);
-    auto const partsupp = read_parquet(source + "/partsupp.parquet", partsupp_cols);
-    auto const supplier = read_parquet(source + "/supplier.parquet", supplier_cols);
-    auto const nation   = read_parquet(source + "/nation.parquet", nation_cols);
+    auto orders   = read_parquet(source + "/orders.parquet", orders_cols);
+    auto lineitem = read_parquet(source + "/lineitem.parquet", lineitem_cols);
+    auto part     = read_parquet(source + "/part.parquet", part_cols);
+    auto partsupp = read_parquet(source + "/partsupp.parquet", partsupp_cols);
+    auto supplier = read_parquet(source + "/supplier.parquet", supplier_cols);
+    auto nation   = read_parquet(source + "/nation.parquet", nation_cols);
 
     return std::make_tuple(std::move(orders),
                            std::move(lineitem),
                            std::move(part),
-                           std::move(partsupp) std::move(supplier),
+                           std::move(partsupp),
+                           std::move(supplier),
                            std::move(nation));
   }
 }
