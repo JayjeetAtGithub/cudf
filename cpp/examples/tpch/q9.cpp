@@ -163,7 +163,6 @@
                            std::move(supplier_projected),
                            std::move(nation_projected));
   } else {
-    // Read out the table from parquet files
     auto orders   = read_parquet(source + "/orders.parquet", orders_cols);
     auto lineitem = read_parquet(source + "/lineitem.parquet", lineitem_cols);
     auto part     = read_parquet(source + "/part.parquet", part_cols);
