@@ -21,6 +21,8 @@
 #include <cudf/column/column.hpp>
 #include <cudf/scalar/scalar.hpp>
 
+#include <cudf_benchmark/tpch_datagen.hpp>
+
 /**
  * @file q6.cpp
  * @brief Implement query 6 of the TPC-H benchmark.
@@ -59,17 +61,14 @@
   return revenue;
 }
 
-int main(int argc, char const** argv)
+/**
+ * @brief Generate or read the dataset
+ *
+ * @param source The dataset source
+ */
+[[nodiscard]] std::unique_ptr<table_with_names> prepare_dataset(std::string source)
 {
-  auto const args = parse_args(argc, argv);
-
-  // Create memory resource
-  auto resource = create_memory_resource(args.memory_resource_type);
-  rmm::mr::set_current_device_resource(resource.get());
-
-  cudf::examples::timer timer;
-
-  // Read out the `lineitem` table from parquet file
+  // Define the column projections and filter predicate for `lineitem` table
   std::vector<std::string> const lineitem_cols = {
     "l_extendedprice", "l_discount", "l_shipdate", "l_quantity"};
   auto const shipdate_ref = cudf::ast::column_reference(std::distance(
@@ -86,8 +85,38 @@ int main(int argc, char const** argv)
     cudf::ast::operation(cudf::ast::ast_operator::LESS, shipdate_ref, shipdate_upper_literal);
   auto const lineitem_pred = std::make_unique<cudf::ast::operation>(
     cudf::ast::ast_operator::LOGICAL_AND, shipdate_pred_a, shipdate_pred_b);
-  auto lineitem =
-    read_parquet(args.dataset_dir + "/lineitem.parquet", lineitem_cols, std::move(lineitem_pred));
+
+  if (source == "cudf_datagen") {
+    auto [o, l, p] = cudf::datagen::generate_orders_lineitem_part(
+      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+    auto lineitem =
+      std::make_unique<table_with_names>(std::move(l), cudf::datagen::schema::LINEITEM);
+    auto lineitem_projected = apply_projection(std::move(lineitem), lineitem_cols);
+    return apply_filter(std::move(lineitem_projected), *lineitem_pred);
+  } else {
+    return read_parquet(source + "/lineitem.parquet", lineitem_cols, std::move(lineitem_pred));
+  }
+}
+
+int main(int argc, char const** argv)
+{
+  auto const args = parse_args(argc, argv);
+
+  // Create memory resource
+  auto resource = create_memory_resource(args.memory_resource_type);
+  rmm::mr::set_current_device_resource(resource.get());
+
+  // Print hardware stats
+  print_hardware_stats();
+
+  // Instantiate the memory stats logger
+  auto const mem_stats_logger = memory_stats_logger();
+
+  // Start timer
+  cudf::examples::timer timer;
+
+  // Prepare the dataset
+  auto lineitem = prepare_dataset(args.dataset_dir);
 
   // Cast the discount and quantity columns to float32 and append to lineitem table
   auto discout_float =
@@ -129,7 +158,11 @@ int main(int argc, char const** argv)
   auto const revenue_view = revenue->view();
   auto const result_table = apply_reduction(revenue_view, cudf::aggregation::Kind::SUM, "revenue");
 
+  // End timer and print elapsed time
   timer.print_elapsed_millis();
+
+  // Print the peak memory usage
+  mem_stats_logger.print_peak_memory_usage();
 
   // Write query result to a parquet file
   result_table->to_parquet("q6.parquet");
