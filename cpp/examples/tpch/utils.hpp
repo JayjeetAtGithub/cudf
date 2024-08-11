@@ -124,7 +124,10 @@ class table_with_names {
   {
     CUDF_FUNC_RANGE();
     auto it = std::find(col_names.begin(), col_names.end(), col_name);
-    if (it == col_names.end()) { throw std::runtime_error("Column not found"); }
+    if (it == col_names.end()) {
+      std::string err_msg = "Column `" + col_name + "` not found";
+      throw std::runtime_error(err_msg);
+    }
     return std::distance(col_names.begin(), it);
   }
   /**
