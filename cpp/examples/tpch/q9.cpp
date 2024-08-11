@@ -23,6 +23,8 @@
 #include <cudf/strings/contains.hpp>
 #include <cudf/strings/strings_column_view.hpp>
 
+#include <cudf_benchmark/tpch_datagen.hpp>
+
 /**
  * @file q9.cpp
  * @brief Implement query 9 of the TPC-H benchmark.
@@ -108,6 +110,75 @@
   return amount;
 }
 
+/**
+ * @brief Generate or read the dataset
+ *
+ * @param source The dataset source
+ */
+[[nodiscard]] auto prepare_dataset(std::string source)
+{
+  // Define the column projection and filter predicates for the source tables
+  std::vector<std::string> const orders_cols   = {"o_orderkey", "o_orderdate"};
+  std::vector<std::string> const lineitem_cols = {
+    "l_suppkey", "l_partkey", "l_orderkey", "l_extendedprice", "l_discount", "l_quantity"};
+  std::vector<std::string> const part_cols     = {"p_partkey", "p_name"};
+  std::vector<std::string> const partsupp_cols = {"ps_suppkey", "ps_partkey", "ps_supplycost"};
+  std::vector<std::string> const supplier_cols = {"s_suppkey", "s_nationkey"};
+  std::vector<std::string> const nation_cols   = {"n_nationkey", "n_name"};
+
+  if (source == "cudf_datagen") {
+    auto [o, l, p] = cudf::datagen::generate_orders_lineitem_part(
+      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+    auto orders = std::make_unique<table_with_names>(std::move(o), cudf::datagen::schema::ORDERS);
+    auto orders_projected = apply_projection(std::move(orders), orders_cols);
+
+    auto lineitem =
+      std::make_unique<table_with_names>(std::move(l), cudf::datagen::schema::LINEITEM);
+    auto lineitem_projected = apply_projection(std::move(lineitem), lineitem_cols);
+
+    auto part = std::make_unique<table_with_names>(std::move(p), cudf::datagen::schema::PART);
+    auto part_projected = apply_projection(std::move(part), part_cols);
+
+    auto ps = cudf::datagen::generate_partsupp(
+      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+    auto partsupp =
+      std::make_unique<table_with_names>(std::move(ps), cudf::datagen::schema::PARTSUPP);
+    auto partsupp_projected = apply_projection(std::move(partsupp), partsupp_cols);
+
+    auto s = cudf::datagen::generate_supplier(
+      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+    auto supplier =
+      std::make_unique<table_with_names>(std::move(s), cudf::datagen::schema::SUPPLIER);
+    auto supplier_projected = apply_projection(std::move(supplier), supplier_cols);
+
+    auto n      = cudf::datagen::generate_nation(cudf::get_default_stream(),
+                                            rmm::mr::get_current_device_resource());
+    auto nation = std::make_unique<table_with_names>(std::move(n), cudf::datagen::schema::NATION);
+    auto nation_projected = apply_projection(std::move(nation), nation_cols);
+
+    return std::make_tuple(std::move(orders_projected),
+                           std::move(lineitem_projected),
+                           std::move(part_projected),
+                           std::move(partsupp_projected),
+                           std::move(supplier_projected),
+                           std::move(nation_projected));
+  } else {
+    // Read out the table from parquet files
+    auto const orders   = read_parquet(source + "/orders.parquet", orders_cols);
+    auto const lineitem = read_parquet(source + "/lineitem.parquet", lineitem_cols);
+    auto const part     = read_parquet(source + "/part.parquet", part_cols);
+    auto const partsupp = read_parquet(source + "/partsupp.parquet", partsupp_cols);
+    auto const supplier = read_parquet(source + "/supplier.parquet", supplier_cols);
+    auto const nation   = read_parquet(source + "/nation.parquet", nation_cols);
+
+    return std::make_tuple(std::move(orders),
+                           std::move(lineitem),
+                           std::move(part),
+                           std::move(partsupp) std::move(supplier),
+                           std::move(nation));
+  }
+}
+
 int main(int argc, char const** argv)
 {
   auto const args = parse_args(argc, argv);
@@ -116,20 +187,17 @@ int main(int argc, char const** argv)
   auto resource = create_memory_resource(args.memory_resource_type);
   rmm::mr::set_current_device_resource(resource.get());
 
+  // Print hardware stats
+  print_hardware_stats();
+
+  // Instantiate the memory stats logger
+  auto const mem_stats_logger = memory_stats_logger();
+
+  // Start timer
   cudf::examples::timer timer;
 
-  // Read out the table from parquet files
-  auto const lineitem = read_parquet(
-    args.dataset_dir + "/lineitem.parquet",
-    {"l_suppkey", "l_partkey", "l_orderkey", "l_extendedprice", "l_discount", "l_quantity"});
-  auto const nation = read_parquet(args.dataset_dir + "/nation.parquet", {"n_nationkey", "n_name"});
-  auto const orders =
-    read_parquet(args.dataset_dir + "/orders.parquet", {"o_orderkey", "o_orderdate"});
-  auto const part     = read_parquet(args.dataset_dir + "/part.parquet", {"p_partkey", "p_name"});
-  auto const partsupp = read_parquet(args.dataset_dir + "/partsupp.parquet",
-                                     {"ps_suppkey", "ps_partkey", "ps_supplycost"});
-  auto const supplier =
-    read_parquet(args.dataset_dir + "/supplier.parquet", {"s_suppkey", "s_nationkey"});
+  // Prepare the dataset
+  auto [orders, lineitem, part, partsupp, supplier, nation] = prepare_dataset(args.dataset_dir);
 
   // Generating the `profit` table
   // Filter the part table using `p_name like '%green%'`
@@ -174,7 +242,11 @@ int main(int argc, char const** argv)
   auto const orderedby_table = apply_orderby(
     groupedby_table, {"nation", "o_year"}, {cudf::order::ASCENDING, cudf::order::DESCENDING});
 
+  // End timer and print elapsed time
   timer.print_elapsed_millis();
+
+  // Print the peak memory usage
+  mem_stats_logger.print_peak_memory_usage();
 
   // Write query result to a parquet file
   orderedby_table->to_parquet("q9.parquet");
