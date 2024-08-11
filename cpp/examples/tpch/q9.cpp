@@ -23,8 +23,6 @@
 #include <cudf/strings/contains.hpp>
 #include <cudf/strings/strings_column_view.hpp>
 
-#include <cudf_benchmark/tpch_datagen.hpp>
-
 /**
  * @file q9.cpp
  * @brief Implement query 9 of the TPC-H benchmark.
@@ -88,6 +86,7 @@
   rmm::cuda_stream_view stream      = cudf::get_default_stream(),
   rmm::device_async_resource_ref mr = rmm::mr::get_current_device_resource())
 {
+  CUDF_FUNC_RANGE();
   auto const one = cudf::numeric_scalar<double>(1);
   auto const one_minus_discount =
     cudf::binary_operation(one, discount, cudf::binary_operator::SUB, discount.type());
@@ -111,12 +110,13 @@
 }
 
 /**
- * @brief Generate or read the dataset
+ * @brief Read out the dataset from a map of parquet data sources
  *
- * @param source The dataset source
+ * @param sources The map of parquet data sources
  */
-[[nodiscard]] auto prepare_dataset(std::string source)
+[[nodiscard]] auto read_parquet_sources(std::unordered_map<std::string, parquet_source>& sources)
 {
+  CUDF_FUNC_RANGE();
   // Define the column projection and filter predicates for the source tables
   std::vector<std::string> const orders_cols   = {"o_orderkey", "o_orderdate"};
   std::vector<std::string> const lineitem_cols = {
@@ -126,57 +126,19 @@
   std::vector<std::string> const supplier_cols = {"s_suppkey", "s_nationkey"};
   std::vector<std::string> const nation_cols   = {"n_nationkey", "n_name"};
 
-  if (source == "cudf_datagen") {
-    auto [o, l, p] = cudf::datagen::generate_orders_lineitem_part(
-      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
-    auto orders = std::make_unique<table_with_names>(std::move(o), cudf::datagen::schema::ORDERS);
-    auto orders_projected = apply_projection(std::move(orders), orders_cols);
+  auto orders   = read_parquet(sources["orders"].make_source_info(), orders_cols);
+  auto lineitem = read_parquet(sources["lineitem"].make_source_info(), lineitem_cols);
+  auto part     = read_parquet(sources["part"].make_source_info(), part_cols);
+  auto partsupp = read_parquet(sources["partsupp"].make_source_info(), partsupp_cols);
+  auto supplier = read_parquet(sources["supplier"].make_source_info(), supplier_cols);
+  auto nation   = read_parquet(sources["nation"].make_source_info(), nation_cols);
 
-    auto lineitem =
-      std::make_unique<table_with_names>(std::move(l), cudf::datagen::schema::LINEITEM);
-    auto lineitem_projected = apply_projection(std::move(lineitem), lineitem_cols);
-
-    auto part = std::make_unique<table_with_names>(std::move(p), cudf::datagen::schema::PART);
-    auto part_projected = apply_projection(std::move(part), part_cols);
-
-    auto ps = cudf::datagen::generate_partsupp(
-      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
-    auto partsupp =
-      std::make_unique<table_with_names>(std::move(ps), cudf::datagen::schema::PARTSUPP);
-    auto partsupp_projected = apply_projection(std::move(partsupp), partsupp_cols);
-
-    auto s = cudf::datagen::generate_supplier(
-      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
-    auto supplier =
-      std::make_unique<table_with_names>(std::move(s), cudf::datagen::schema::SUPPLIER);
-    auto supplier_projected = apply_projection(std::move(supplier), supplier_cols);
-
-    auto n      = cudf::datagen::generate_nation(cudf::get_default_stream(),
-                                            rmm::mr::get_current_device_resource());
-    auto nation = std::make_unique<table_with_names>(std::move(n), cudf::datagen::schema::NATION);
-    auto nation_projected = apply_projection(std::move(nation), nation_cols);
-
-    return std::make_tuple(std::move(orders_projected),
-                           std::move(lineitem_projected),
-                           std::move(part_projected),
-                           std::move(partsupp_projected),
-                           std::move(supplier_projected),
-                           std::move(nation_projected));
-  } else {
-    auto orders   = read_parquet(source + "/orders.parquet", orders_cols);
-    auto lineitem = read_parquet(source + "/lineitem.parquet", lineitem_cols);
-    auto part     = read_parquet(source + "/part.parquet", part_cols);
-    auto partsupp = read_parquet(source + "/partsupp.parquet", partsupp_cols);
-    auto supplier = read_parquet(source + "/supplier.parquet", supplier_cols);
-    auto nation   = read_parquet(source + "/nation.parquet", nation_cols);
-
-    return std::make_tuple(std::move(orders),
-                           std::move(lineitem),
-                           std::move(part),
-                           std::move(partsupp),
-                           std::move(supplier),
-                           std::move(nation));
-  }
+  return std::make_tuple(std::move(orders),
+                         std::move(lineitem),
+                         std::move(part),
+                         std::move(partsupp),
+                         std::move(supplier),
+                         std::move(nation));
 }
 
 int main(int argc, char const** argv)
@@ -187,17 +149,22 @@ int main(int argc, char const** argv)
   auto resource = create_memory_resource(args.memory_resource_type);
   rmm::mr::set_current_device_resource(resource.get());
 
-  // Print hardware stats
-  print_hardware_stats();
+  // Print device information
+  print_device_info();
 
   // Instantiate the memory stats logger
   auto const mem_stats_logger = memory_stats_logger();
 
+  // Generate a set of data sources
+  std::unordered_map<std::string, parquet_source> sources;
+  populate_parquet_sources(
+    args.dataset_dir, {"part", "supplier", "lineitem", "partsupp", "orders", "nation"}, sources);
+
   // Start timer
   cudf::examples::timer timer;
 
-  // Prepare the dataset
-  auto [orders, lineitem, part, partsupp, supplier, nation] = prepare_dataset(args.dataset_dir);
+  // Read the dataset using the data sources
+  auto [orders, lineitem, part, partsupp, supplier, nation] = read_parquet_sources(sources);
 
   // Generating the `profit` table
   // Filter the part table using `p_name like '%green%'`

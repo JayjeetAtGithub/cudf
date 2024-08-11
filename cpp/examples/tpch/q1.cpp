@@ -21,8 +21,6 @@
 #include <cudf/column/column.hpp>
 #include <cudf/scalar/scalar.hpp>
 
-#include <cudf_benchmark/tpch_datagen.hpp>
-
 /**
  * @file q1.cpp
  * @brief Implement query 1 of the TPC-H benchmark.
@@ -66,6 +64,7 @@
   rmm::cuda_stream_view stream      = cudf::get_default_stream(),
   rmm::device_async_resource_ref mr = rmm::mr::get_current_device_resource())
 {
+  CUDF_FUNC_RANGE();
   auto const one = cudf::numeric_scalar<double>(1);
   auto const one_minus_discount =
     cudf::binary_operation(one, discount, cudf::binary_operator::SUB, discount.type(), stream, mr);
@@ -93,6 +92,7 @@
   rmm::cuda_stream_view stream      = cudf::get_default_stream(),
   rmm::device_async_resource_ref mr = rmm::mr::get_current_device_resource())
 {
+  CUDF_FUNC_RANGE();
   auto const one = cudf::numeric_scalar<double>(1);
   auto const one_plus_tax =
     cudf::binary_operation(one, tax, cudf::binary_operator::ADD, tax.type(), stream, mr);
@@ -103,13 +103,15 @@
 }
 
 /**
- * @brief Generate or read the dataset
+ * @brief Read out the dataset from a map of parquet data sources
  *
- * @param source The dataset source
+ * @param sources The map of parquet data sources
  */
-[[nodiscard]] std::unique_ptr<table_with_names> prepare_dataset(std::string source)
+[[nodiscard]] std::unique_ptr<table_with_names> read_parquet_sources(
+  std::unordered_map<std::string, parquet_source>& sources)
 {
-  // Define the column projections and filter predicate for `lineitem` table
+  CUDF_FUNC_RANGE();
+  // Define the column projection and filter predicates for the source tables
   std::vector<std::string> const lineitem_cols = {"l_returnflag",
                                                   "l_linestatus",
                                                   "l_quantity",
@@ -126,16 +128,8 @@
   auto const lineitem_pred          = std::make_unique<cudf::ast::operation>(
     cudf::ast::ast_operator::LESS_EQUAL, shipdate_ref, shipdate_upper_literal);
 
-  if (source == "cudf_datagen") {
-    auto [o, l, p] = cudf::datagen::generate_orders_lineitem_part(
-      get_sf(), cudf::get_default_stream(), rmm::mr::get_current_device_resource());
-    auto lineitem =
-      std::make_unique<table_with_names>(std::move(l), cudf::datagen::schema::LINEITEM);
-    auto lineitem_projected = apply_projection(std::move(lineitem), lineitem_cols);
-    return apply_filter(std::move(lineitem_projected), *lineitem_pred);
-  } else {
-    return read_parquet(source + "/lineitem.parquet", lineitem_cols, std::move(lineitem_pred));
-  }
+  return read_parquet(
+    sources["lineitem"].make_source_info(), lineitem_cols, std::move(lineitem_pred));
 }
 
 int main(int argc, char const** argv)
@@ -146,17 +140,21 @@ int main(int argc, char const** argv)
   auto resource = create_memory_resource(args.memory_resource_type);
   rmm::mr::set_current_device_resource(resource.get());
 
-  // Print hardware stats
-  print_hardware_stats();
+  // Print device information
+  print_device_info();
 
   // Instantiate the memory stats logger
   auto const mem_stats_logger = memory_stats_logger();
 
+  // Generate a set of data sources
+  std::unordered_map<std::string, parquet_source> sources;
+  populate_parquet_sources(args.dataset_dir, {"lineitem"}, sources);
+
   // Start timer
   cudf::examples::timer timer;
 
-  // Prepare the dataset
-  auto lineitem = prepare_dataset(args.dataset_dir);
+  // Read the dataset using the data sources
+  auto lineitem = read_parquet_sources(sources);
 
   // Calculate the discount price and charge columns and append to lineitem table
   auto disc_price =

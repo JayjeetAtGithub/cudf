@@ -40,7 +40,6 @@ void write_parquet(std::unique_ptr<cudf::table> table,
                    std::vector<std::string> const& col_names)
 {
   CUDF_FUNC_RANGE();
-  std::cout << __func__ << " : " << path << std::endl;
   cudf::io::table_metadata metadata;
   std::vector<cudf::io::column_name_info> col_name_infos;
   for (auto& col_name : col_names) {

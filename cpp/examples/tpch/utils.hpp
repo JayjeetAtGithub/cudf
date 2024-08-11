@@ -28,12 +28,15 @@
 #include <cudf/transform.hpp>
 #include <cudf/unary.hpp>
 
+#include <rmm/device_uvector.hpp>
 #include <rmm/mr/device/cuda_memory_resource.hpp>
 #include <rmm/mr/device/device_memory_resource.hpp>
 #include <rmm/mr/device/managed_memory_resource.hpp>
 #include <rmm/mr/device/owning_wrapper.hpp>
 #include <rmm/mr/device/pool_memory_resource.hpp>
 #include <rmm/mr/device/statistics_resource_adaptor.hpp>
+
+#include <cudf_benchmark/tpch_datagen.hpp>
 
 #include <cstdlib>
 #include <ctime>
@@ -423,18 +426,17 @@ struct groupby_context_t {
 /**
  * @brief Read a parquet file into a table
  *
- * @param filename The path to the parquet file
+ * @param source_info The source of the parquet file
  * @param columns The columns to read
  * @param predicate The filter predicate to pushdown
  */
 [[nodiscard]] std::unique_ptr<table_with_names> read_parquet(
-  std::string const& filename,
+  cudf::io::source_info const& source_info,
   std::vector<std::string> const& columns                = {},
   std::unique_ptr<cudf::ast::operation> const& predicate = nullptr)
 {
   CUDF_FUNC_RANGE();
-  auto const source = cudf::io::source_info(filename);
-  auto builder      = cudf::io::parquet_reader_options_builder(source);
+  auto builder = cudf::io::parquet_reader_options_builder(source_info);
   if (!columns.empty()) { builder.columns(columns); }
   if (predicate) { builder.filter(*predicate); }
   auto const options       = builder.build();
@@ -479,6 +481,10 @@ int32_t days_since_epoch(int year, int month, int day)
   return static_cast<int32_t>(diff);
 }
 
+/**
+ * @brief A struct to hold the CLI arguments
+ * of the TPC-H example applications
+ */
 struct tpch_example_args {
   std::string dataset_dir;
   std::string memory_resource_type;
@@ -516,9 +522,12 @@ cudf::size_type get_sf()
   return sf;
 }
 
-void print_hardware_stats()
+/**
+ * @brief Print GPU information
+ */
+void print_device_info()
 {
-  std::cout << "####### Hardware Information ##########" << std::endl;
+  std::cout << "####### Device Information ##########" << std::endl;
   auto num_devices = rmm::get_num_cuda_devices();
   std::cout << "CUDA device count: " << num_devices << std::endl;
 
@@ -532,4 +541,111 @@ void print_hardware_stats()
             << std::endl;
   std::cout << "#######################################" << std::endl;
   std::cout << std::endl;
+}
+
+/**
+ * @brief Struct representing a parquet data source.
+ * Can be a device buffer or a POSIX file.
+ */
+struct parquet_source {
+  parquet_source() : d_buffer{0, cudf::get_default_stream()}, filepath(""), is_file(false){};
+  parquet_source(std::string const& filepath)
+    : d_buffer{0, cudf::get_default_stream()}, filepath(filepath), is_file(true){};
+  cudf::io::source_info make_source_info()
+  {
+    return is_file == true ? cudf::io::source_info(filepath) : cudf::io::source_info(d_buffer);
+  }
+  rmm::device_uvector<std::byte> d_buffer;
+  std::string filepath;
+  bool is_file;
+};
+
+/**
+ * @brief Write a table to a parquet data source
+ *
+ * @param table The `cudf::table` to write
+ * @param col_names The column names of the table
+ * @param parquet_source The parquet data source to write the table to
+ */
+void write_to_parquet_source(std::unique_ptr<cudf::table> const& table,
+                             std::vector<std::string> const& col_names,
+                             parquet_source& source)
+{
+  CUDF_FUNC_RANGE();
+  auto const stream = cudf::get_default_stream();
+
+  // Prepare the table metadata
+  cudf::io::table_metadata metadata;
+  std::vector<cudf::io::column_name_info> col_name_infos;
+  for (auto& col_name : col_names) {
+    col_name_infos.push_back(cudf::io::column_name_info(col_name));
+  }
+  metadata.schema_info            = col_name_infos;
+  auto const table_input_metadata = cudf::io::table_input_metadata{metadata};
+
+  // Declare a host and device buffer
+  std::vector<char> h_buffer;
+
+  // Write parquet data to host buffer
+  auto builder =
+    cudf::io::parquet_writer_options::builder(cudf::io::sink_info(&h_buffer), table->view());
+  builder.metadata(table_input_metadata);
+  auto const options = builder.build();
+  cudf::io::write_parquet(options);
+
+  // Copy host buffer to device buffer
+  source.d_buffer.resize(h_buffer.size(), stream);
+  CUDF_CUDA_TRY(cudaMemcpyAsync(
+    source.d_buffer.data(), h_buffer.data(), h_buffer.size(), cudaMemcpyDefault, stream.value()));
+}
+
+void populate_parquet_sources(std::string const& dataset_dir,
+                              std::vector<std::string> const& table_names,
+                              std::unordered_map<std::string, parquet_source>& sources)
+{
+  std::for_each(table_names.begin(), table_names.end(), [&](auto const& table_name) {
+    sources[table_name] = parquet_source();
+  });
+  if (dataset_dir == "cudf_datagen") {
+    auto scale_factor             = get_sf();
+    auto [orders, lineitem, part] = cudf::datagen::generate_orders_lineitem_part(
+      scale_factor, cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+
+    auto partsupp = cudf::datagen::generate_partsupp(
+      scale_factor, cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+
+    auto supplier = cudf::datagen::generate_supplier(
+      scale_factor, cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+
+    auto customer = cudf::datagen::generate_customer(
+      scale_factor, cudf::get_default_stream(), rmm::mr::get_current_device_resource());
+
+    auto nation = cudf::datagen::generate_nation(cudf::get_default_stream(),
+                                                 rmm::mr::get_current_device_resource());
+
+    auto region = cudf::datagen::generate_region(cudf::get_default_stream(),
+                                                 rmm::mr::get_current_device_resource());
+
+    write_to_parquet_source(std::move(orders), cudf::datagen::schema::ORDERS, sources["orders"]);
+    write_to_parquet_source(
+      std::move(lineitem), cudf::datagen::schema::LINEITEM, sources["lineitem"]);
+    write_to_parquet_source(std::move(part), cudf::datagen::schema::PART, sources["part"]);
+    write_to_parquet_source(
+      std::move(partsupp), cudf::datagen::schema::PARTSUPP, sources["partsupp"]);
+    write_to_parquet_source(
+      std::move(customer), cudf::datagen::schema::CUSTOMER, sources["customer"]);
+    write_to_parquet_source(
+      std::move(supplier), cudf::datagen::schema::SUPPLIER, sources["supplier"]);
+    write_to_parquet_source(std::move(nation), cudf::datagen::schema::NATION, sources["nation"]);
+    write_to_parquet_source(std::move(region), cudf::datagen::schema::REGION, sources["region"]);
+  } else {
+    sources["orders"]   = parquet_source(dataset_dir + "/orders.parquet");
+    sources["lineitem"] = parquet_source(dataset_dir + "/lineitem.parquet");
+    sources["part"]     = parquet_source(dataset_dir + "/part.parquet");
+    sources["partsupp"] = parquet_source(dataset_dir + "/partsupp.parquet");
+    sources["customer"] = parquet_source(dataset_dir + "/customer.parquet");
+    sources["supplier"] = parquet_source(dataset_dir + "/supplier.parquet");
+    sources["nation"]   = parquet_source(dataset_dir + "/nation.parquet");
+    sources["region"]   = parquet_source(dataset_dir + "/region.parquet");
+  }
 }
