@@ -20,7 +20,6 @@
 #include <cudf/ast/expressions.hpp>
 #include <cudf/column/column.hpp>
 #include <cudf/scalar/scalar.hpp>
-#include <cudf/utilities/default_stream.hpp>
 
 #include <cudf_benchmark/tpch_datagen.hpp>
 
@@ -147,6 +146,13 @@ int main(int argc, char const** argv)
   auto resource = create_memory_resource(args.memory_resource_type);
   rmm::mr::set_current_device_resource(resource.get());
 
+  // Print hardware stats
+  print_hardware_stats();
+
+  // Instantiate the memory stats logger
+  auto const mem_stats_logger = memory_stats_logger();
+
+  // Start timer
   cudf::examples::timer timer;
 
   // Prepare the dataset
@@ -187,7 +193,11 @@ int main(int argc, char const** argv)
                                              {"l_returnflag", "l_linestatus"},
                                              {cudf::order::ASCENDING, cudf::order::ASCENDING});
 
+  // End timer and print elapsed time
   timer.print_elapsed_millis();
+
+  // Print the peak memory usage
+  std::cout << "Peak memory usage: " << mem_stats_logger.peak_memory_usage() << std::endl;
 
   // Write query result to a parquet file
   orderedby_table->to_parquet("q1.parquet");

@@ -510,3 +510,21 @@ cudf::size_type get_sf()
   std::cout << "Using scale factor: " << sf << std::endl;
   return sf;
 }
+
+void print_hardware_stats()
+{
+  std::cout << "####### Hardware Information ##########" << std::endl;
+  auto num_devices = rmm::get_num_cuda_devices();
+  std::cout << "CUDA device count: " << num_devices << std::endl;
+
+  auto device_id = rmm::get_current_cuda_device();
+  std::cout << "Using CUDA device: " << device_id.value() << std::endl;
+
+  auto const [free, total] = rmm::available_device_memory();
+  std::cout << "Total device memory: " << static_cast<double>(total / (1024 * 1024)) << " MB"
+            << std::endl;
+  std::cout << "Available device memory: " << static_cast<double>(free / (1024 * 1024)) << " MB"
+            << std::endl;
+  std::cout << "#######################################" << std::endl;
+  std::cout << std::endl;
+}
