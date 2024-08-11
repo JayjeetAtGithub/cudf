@@ -100,5 +100,5 @@ int main(int argc, char** argv)
   auto region = cudf::datagen::generate_region(cudf::get_default_stream(),
                                                rmm::mr::get_current_device_resource());
   write_parquet(std::move(region), "region.parquet", cudf::datagen::schema::REGION);
-  std::cout << "Peak GPU Memory Usage: " << mem_stats_logger.peak_memory_usage() << std::endl;
+  mem_stats_logger.print_peak_memory_usage();
 }

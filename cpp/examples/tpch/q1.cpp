@@ -197,7 +197,7 @@ int main(int argc, char const** argv)
   timer.print_elapsed_millis();
 
   // Print the peak memory usage
-  std::cout << "Peak memory usage: " << mem_stats_logger.peak_memory_usage() << std::endl;
+  mem_stats_logger.print_peak_memory_usage();
 
   // Write query result to a parquet file
   orderedby_table->to_parquet("q1.parquet");

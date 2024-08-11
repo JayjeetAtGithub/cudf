@@ -52,9 +52,11 @@ class memory_stats_logger {
 
   ~memory_stats_logger() { rmm::mr::set_current_device_resource(existing_mr); }
 
-  [[nodiscard]] size_t peak_memory_usage() const noexcept
+  [[nodiscard]] void print_peak_memory_usage() const noexcept
   {
-    return statistics_mr.get_bytes_counter().peak;
+    std::cout << "Peak memory usage: "
+              << static_cast<double>(statistics_mr.get_bytes_counter().peak / (1024 * 1024))
+              << " MB" << std::endl;
   }
 
  private:
