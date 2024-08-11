@@ -97,6 +97,13 @@ int main(int argc, char const** argv)
   auto resource = create_memory_resource(args.memory_resource_type);
   rmm::mr::set_current_device_resource(resource.get());
 
+  // Print hardware stats
+  print_hardware_stats();
+
+  // Instantiate the memory stats logger
+  auto const mem_stats_logger = memory_stats_logger();
+
+  // Start timer
   cudf::examples::timer timer;
 
   // Define the column projection and filter predicate for the `orders` table
@@ -158,7 +165,11 @@ int main(int argc, char const** argv)
   auto const orderedby_table =
     apply_orderby(groupedby_table, {"revenue"}, {cudf::order::DESCENDING});
 
+  // End timer and print elapsed time
   timer.print_elapsed_millis();
+
+  // Print the peak memory usage
+  mem_stats_logger.print_peak_memory_usage();
 
   // Write query result to a parquet file
   orderedby_table->to_parquet("q10.parquet");
