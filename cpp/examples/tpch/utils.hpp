@@ -527,7 +527,7 @@ cudf::size_type get_sf()
  */
 void print_device_info()
 {
-  std::cout << "####### Device Information ##########" << std::endl;
+  std::cout << "######### Device Information ##########" << std::endl;
   auto num_devices = rmm::get_num_cuda_devices();
   std::cout << "CUDA device count: " << num_devices << std::endl;
 
@@ -599,10 +599,19 @@ void write_to_parquet_source(std::unique_ptr<cudf::table> const& table,
     source.d_buffer.data(), h_buffer.data(), h_buffer.size(), cudaMemcpyDefault, stream.value()));
 }
 
+/**
+ * @brief Populate the parquet data sources using the dataset
+ * directory information and the names of the tables to generate
+ *
+ * @param dataset_dir The directory containing the parquet files
+ * @param table_names The names of the tables to generate
+ * @param sources The parquet data sources to populate
+ */
 void populate_parquet_sources(std::string const& dataset_dir,
                               std::vector<std::string> const& table_names,
                               std::unordered_map<std::string, parquet_source>& sources)
 {
+  CUDF_FUNC_RANGE();
   std::for_each(table_names.begin(), table_names.end(), [&](auto const& table_name) {
     sources[table_name] = parquet_source();
   });
