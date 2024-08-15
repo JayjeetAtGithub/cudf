@@ -90,7 +90,7 @@ inline auto make_managed_pool()
 }
 inline auto make_prefetch()
 {
-  return rmm::mr::make_owning_wrapper<rmm::mr::prefetch_resource_adaptor>(make_cuda());
+  return rmm::mr::make_owning_wrapper<rmm::mr::prefetch_resource_adaptor>(make_managed());
 }
 inline std::shared_ptr<rmm::mr::device_memory_resource> create_memory_resource(
   std::string const& mode)
