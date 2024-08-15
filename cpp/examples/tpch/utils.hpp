@@ -29,11 +29,13 @@
 #include <cudf/unary.hpp>
 
 #include <rmm/device_uvector.hpp>
+#include <rmm/mr/device/cuda_async_memory_resource.hpp>
 #include <rmm/mr/device/cuda_memory_resource.hpp>
 #include <rmm/mr/device/device_memory_resource.hpp>
 #include <rmm/mr/device/managed_memory_resource.hpp>
 #include <rmm/mr/device/owning_wrapper.hpp>
 #include <rmm/mr/device/pool_memory_resource.hpp>
+#include <rmm/mr/device/prefetch_resource_adaptor.hpp>
 #include <rmm/mr/device/statistics_resource_adaptor.hpp>
 
 #include <cudf_benchmark/tpch_datagen.hpp>
@@ -69,10 +71,16 @@ class memory_stats_logger {
 
 // RMM memory resource creation utilities
 inline auto make_cuda() { return std::make_shared<rmm::mr::cuda_memory_resource>(); }
+inline auto make_async() { return std::make_shared<rmm::mr::cuda_async_memory_resource>(); }
 inline auto make_pool()
 {
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
     make_cuda(), rmm::percent_of_free_device_memory(50));
+}
+inline auto make_async_pool()
+{
+  return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
+    make_async(), rmm::percent_of_free_device_memory(50));
 }
 inline auto make_managed() { return std::make_shared<rmm::mr::managed_memory_resource>(); }
 inline auto make_managed_pool()
@@ -80,15 +88,22 @@ inline auto make_managed_pool()
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
     make_managed(), rmm::percent_of_free_device_memory(50));
 }
+inline auto make_prefetch()
+{
+  return rmm::mr::make_owning_wrapper<rmm::mr::prefetch_resource_adaptor>(make_cuda());
+}
 inline std::shared_ptr<rmm::mr::device_memory_resource> create_memory_resource(
   std::string const& mode)
 {
   if (mode == "cuda") return make_cuda();
+  if (mode == "async") return make_async();
   if (mode == "pool") return make_pool();
+  if (mode == "async_pool") return make_async_pool();
   if (mode == "managed") return make_managed();
   if (mode == "managed_pool") return make_managed_pool();
+  if (mode == "prefetch") return make_prefetch();
   CUDF_FAIL("Unknown rmm_mode parameter: " + mode +
-            "\nExpecting: cuda, pool, managed, or managed_pool");
+            "\nExpecting: cuda, async, pool, async_pool, managed, managed_pool, prefetch");
 }
 
 /**
