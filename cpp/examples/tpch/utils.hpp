@@ -75,18 +75,18 @@ inline auto make_async() { return std::make_shared<rmm::mr::cuda_async_memory_re
 inline auto make_pool()
 {
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
-    make_cuda(), rmm::percent_of_free_device_memory(50));
+    make_cuda(), rmm::percent_of_free_device_memory(80));
 }
 inline auto make_async_pool()
 {
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
-    make_async(), rmm::percent_of_free_device_memory(50));
+    make_async(), rmm::percent_of_free_device_memory(80));
 }
 inline auto make_managed() { return std::make_shared<rmm::mr::managed_memory_resource>(); }
 inline auto make_managed_pool()
 {
   return rmm::mr::make_owning_wrapper<rmm::mr::pool_memory_resource>(
-    make_managed(), rmm::percent_of_free_device_memory(50));
+    make_managed(), rmm::percent_of_free_device_memory(80));
 }
 inline auto make_prefetch()
 {
