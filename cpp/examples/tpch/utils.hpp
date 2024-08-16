@@ -97,7 +97,6 @@ inline std::shared_ptr<rmm::mr::device_memory_resource> create_memory_resource(
   if (mode == "cuda") return make_cuda();
   if (mode == "async") return make_async();
   if (mode == "pool") return make_pool();
-  if (mode == "async_pool") return make_async_pool();
   if (mode == "managed") return make_managed();
   if (mode == "managed_pool") return make_managed_pool();
   if (mode == "prefetch") return make_prefetch();
