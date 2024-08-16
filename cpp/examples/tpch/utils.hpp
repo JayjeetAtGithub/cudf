@@ -91,6 +91,10 @@ inline auto make_prefetch()
 {
   return rmm::mr::make_owning_wrapper<rmm::mr::prefetch_resource_adaptor>(make_managed());
 }
+inline auto make_prefetch_pool()
+{
+  return rmm::mr::make_owning_wrapper<rmm::mr::prefetch_resource_adaptor>(make_managed_pool());
+}
 inline std::shared_ptr<rmm::mr::device_memory_resource> create_memory_resource(
   std::string const& mode)
 {
@@ -100,8 +104,10 @@ inline std::shared_ptr<rmm::mr::device_memory_resource> create_memory_resource(
   if (mode == "managed") return make_managed();
   if (mode == "managed_pool") return make_managed_pool();
   if (mode == "prefetch") return make_prefetch();
-  CUDF_FAIL("Unknown rmm_mode parameter: " + mode +
-            "\nExpecting: cuda, async, pool, async_pool, managed, managed_pool, prefetch");
+  if (mode == "prefetch_pool") return make_prefetch_pool();
+  CUDF_FAIL(
+    "Unknown rmm_mode parameter: " + mode +
+    "\nExpecting: cuda, async, pool, async_pool, managed, managed_pool, prefetch, prefetch_pool");
 }
 
 /**
