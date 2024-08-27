@@ -130,6 +130,26 @@ std::unique_ptr<cudf::column> generate_random_numeric_column(T lower,
   return col;
 }
 
+std::unique_ptr<cudf::column> generate_random_numeric_column_64bit(
+  int64_t lower,
+  int64_t upper,
+  int64_t num_rows,
+  rmm::cuda_stream_view stream,
+  rmm::device_async_resource_ref mr)
+{
+  CUDF_FUNC_RANGE();
+  auto col = cudf::make_numeric_column(
+    cudf::data_type{cudf::type_id::INT64}, num_rows, cudf::mask_state::UNALLOCATED, stream, mr);
+  int64_t begin = 0;
+  int64_t end   = num_rows;
+  thrust::transform(rmm::exec_policy(stream),
+                    thrust::make_counting_iterator(begin),
+                    thrust::make_counting_iterator(end),
+                    col->mutable_view().begin<int64_t>(),
+                    random_number_generator<int64_t>(lower, upper));
+  return col;
+}
+
 template std::unique_ptr<cudf::column> generate_random_numeric_column<int8_t>(
   int8_t lower,
   int8_t upper,

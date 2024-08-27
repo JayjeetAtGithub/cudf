@@ -53,6 +53,13 @@ std::unique_ptr<cudf::column> generate_random_numeric_column(
   rmm::cuda_stream_view stream      = cudf::get_default_stream(),
   rmm::device_async_resource_ref mr = rmm::mr::get_current_device_resource());
 
+std::unique_ptr<cudf::column> generate_random_numeric_column_64bit(
+  int64_t lower,
+  int64_t upper,
+  int64_t num_rows,
+  rmm::cuda_stream_view stream      = cudf::get_default_stream(),
+  rmm::device_async_resource_ref mr = rmm::mr::get_current_device_resource());
+
 /**
  * @brief Generate a primary key column
  *

@@ -64,6 +64,11 @@ target_link_libraries(
   datagen PRIVATE cudf_tpch_datagen benchmark::benchmark_main $<TARGET_NAME_IF_EXISTS:conda_env>
 )
 
+add_executable(debug common/cudf_tpch_datagen/debug.cpp)
+target_link_libraries(
+  debug PRIVATE cudf_tpch_datagen benchmark::benchmark_main $<TARGET_NAME_IF_EXISTS:conda_env>
+)
+
 # ##################################################################################################
 # * compiler function -----------------------------------------------------------------------------
 
