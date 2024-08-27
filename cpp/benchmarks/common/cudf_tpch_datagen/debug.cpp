@@ -16,8 +16,4 @@
 
 #include "random_column_generator.hpp"
 
-int main()
-{
-  int64_t num_rows = auto const o_rep_freqs =
-    generate_random_numeric_column_64bit(1, 7, o_num_rows, stream, mr);
-}
+int main() { auto const col = generate_random_numeric_column_64bit(1, 7, o_num_rows, stream, mr); }
